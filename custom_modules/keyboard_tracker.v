@@ -1,0 +1,463 @@
+module keyboard_tracker #(parameter PULSE_OR_HOLD = 0) (
+    input clock,
+	 input reset,
+	 
+	 inout PS2_CLK,
+	 inout PS2_DAT,
+	 
+	 output [4:0] keypress_out
+	 );
+	 
+	 // A flag indicating when the keyboard has sent a new byte.
+	 wire byte_received;
+	 // The most recent byte received from the keyboard.
+	 wire [7:0] newest_byte;
+	 	 
+	 localparam // States indicating the type of code the controller expects
+	            // to receive next.
+	            MAKE            = 2'b00,
+	            BREAK           = 2'b01,
+					SECONDARY_MAKE  = 2'b10,
+					SECONDARY_BREAK = 2'b11,
+					
+					// Make/break codes for all keys that are handled by this
+					// controller. Two keys may have the same make/break codes
+					// if one of them is a secondary code.
+					// TODO: ADD TO HERE WHEN IMPLEMENTING NEW KEYS	
+					A_CODE = 8'h1c,
+					S_CODE = 8'h1b,
+					D_CODE = 8'h23,
+					F_CODE = 8'h2b,
+					
+					H_CODE = 8'h33,
+					J_CODE = 8'h3b,
+					K_CODE = 8'h42,
+					L_CODE = 8'h4b,
+					
+					LEFT_CODE  = 8'h6b,
+					RIGHT_CODE = 8'h74,
+					UP_CODE    = 8'h75,
+					DOWN_CODE  = 8'h72,
+					SPACE_CODE = 8'h29,
+					ENTER_CODE = 8'h5a;
+					
+    reg [1:0] curr_state;
+	 
+	 // Press signals are high when their corresponding key is being pressed,
+	 // and low otherwise. They directly represent the keyboard's state.
+	 // TODO: ADD TO HERE WHEN IMPLEMENTING NEW KEYS	 
+	reg f_press, a_press, s_press, d_press, h_press, j_press, k_press, l_press; 
+	 reg left_press, right_press, up_press, down_press;
+	 reg space_press, enter_press;
+	 
+	 // Lock signals prevent a key press signal from going high for more than one
+	 // clock tick when pulse mode is enabled. A key becomes 'locked' as soon as
+	 // it is pressed down.
+	 // TODO: ADD TO HERE WHEN IMPLEMENTING NEW KEYS
+	 reg f_lock, a_lock, s_lock, d_lock, h_lock, j_lock, k_lock, l_lock;
+	 reg left_lock, right_lock, up_lock, down_lock;
+	 reg space_lock, enter_lock;
+	 
+	 // Output is equal to the key press wires in mode 0 (hold), and is similar in
+	 // mode 1 (pulse) except the signal is lowered when the key's lock goes high.
+	 // TODO: ADD TO HERE WHEN IMPLEMENTING NEW KEYS
+	
+	assign keypress_out = 	a_press && ~(a_lock && PULSE_OR_HOLD) 			? 'd1:
+							s_press && ~(s_lock && PULSE_OR_HOLD) 			? 'd2:
+							d_press && ~(d_lock && PULSE_OR_HOLD) 			? 'd3:
+							f_press && ~(f_lock && PULSE_OR_HOLD) 			? 'd4:
+							h_press && ~(h_lock && PULSE_OR_HOLD) 			? 'd5:
+							j_press && ~(j_lock && PULSE_OR_HOLD) 			? 'd6:
+							k_press && ~(k_lock && PULSE_OR_HOLD) 			? 'd7:
+							l_press && ~(l_lock && PULSE_OR_HOLD) 			? 'd8:
+							left_press && ~(left_lock && PULSE_OR_HOLD)		? 'd9:
+							right_press && ~(right_lock && PULSE_OR_HOLD)	? 'd10:
+							up_press && ~(up_lock && PULSE_OR_HOLD)			? 'd11:
+							down_press && ~(down_lock && PULSE_OR_HOLD)		? 'd12:
+							space_press && ~(space_lock && PULSE_OR_HOLD)	? 'd13:
+							enter_press && ~(enter_lock && PULSE_OR_HOLD)	? 'd14: 'd0;
+	 
+	 // Core PS/2 driver.
+	 PS2_Controller #(.INITIALIZE_MOUSE(0)) core_driver(
+	     .CLOCK_50(clock),
+		  .reset(~reset),
+		  .PS2_CLK(PS2_CLK),
+		  .PS2_DAT(PS2_DAT),
+		  .received_data(newest_byte),
+		  .received_data_en(byte_received)
+		  );
+		  
+    always @(posedge clock) begin
+	     // Make is default state. State transitions are handled
+        // at the bottom of the case statement below.
+		  curr_state <= MAKE;
+		  
+		  // Lock signals rise the clock tick after the key press signal rises,
+		  // and fall one clock tick after the key press signal falls. This way,
+		  // only the first clock cycle has the press signal high while the
+		  // lock signal is low.
+		  // TODO: ADD TO HERE WHEN IMPLEMENTING NEW KEYS
+		  f_lock <= f_press;
+		  a_lock <= a_press;
+		  s_lock <= s_press;
+		  d_lock <= d_press;
+		  
+		  h_lock <= h_press;
+		  j_lock <= j_press;
+		  k_lock <= k_press;
+		  l_lock <= l_press;
+		  
+		  left_lock <= left_press;
+		  right_lock <= right_press;
+		  up_lock <= up_press;
+		  down_lock <= down_press;
+		  
+		  space_lock <= space_press;
+		  enter_lock <= enter_press;
+		  
+	     if (~reset) begin
+		      curr_state <= MAKE;
+				
+				// TODO: ADD TO HERE WHEN IMPLEMENTING NEW KEYS
+				f_press <= 1'b0;
+				a_press <= 1'b0;
+				s_press <= 1'b0;
+				d_press <= 1'b0;
+				
+				h_press <= 1'b0;
+				j_press <= 1'b0;
+				k_press <= 1'b0;
+				l_press <= 1'b0;
+				
+				left_press  <= 1'b0;
+				right_press <= 1'b0;
+				up_press    <= 1'b0;
+				down_press  <= 1'b0;
+				space_press <= 1'b0;
+				enter_press <= 1'b0;
+				
+				f_lock <= 1'b0;
+				a_lock <= 1'b0;
+				s_lock <= 1'b0;
+				d_lock <= 1'b0;
+				
+				h_lock <= 1'b0;
+				j_lock <= 1'b0;
+				k_lock <= 1'b0;
+				l_lock <= 1'b0;
+				
+				left_lock  <= 1'b0;
+				right_lock <= 1'b0;
+				up_lock    <= 1'b0;
+				down_lock  <= 1'b0;
+				space_lock <= 1'b0;
+				enter_lock <= 1'b0;
+        end
+		  else if (byte_received) begin
+		      // Respond to the newest byte received from the keyboard,
+				// by either making or breaking the specified key, or changing
+				// state according to special bytes.
+				case (newest_byte)
+				    // TODO: ADD TO HERE WHEN IMPLEMENTING NEW KEYS
+					F_CODE: f_press <= curr_state == MAKE;
+					 A_CODE: a_press <= curr_state == MAKE;
+					 S_CODE: s_press <= curr_state == MAKE;
+					 D_CODE: d_press <= curr_state == MAKE;
+					 
+					 H_CODE: h_press <= curr_state == MAKE;
+					 J_CODE: j_press <= curr_state == MAKE;
+					 K_CODE: k_press <= curr_state == MAKE;
+					 L_CODE: l_press <= curr_state == MAKE;
+					 
+					 LEFT_CODE:  left_press  <= curr_state == MAKE;
+					 RIGHT_CODE: right_press <= curr_state == MAKE;
+					 UP_CODE:    up_press    <= curr_state == MAKE;
+					 DOWN_CODE:  down_press  <= curr_state == MAKE;
+					 
+					 SPACE_CODE: space_press <= curr_state == MAKE;
+					 ENTER_CODE: enter_press <= curr_state == MAKE;
+
+					 // State transition logic.
+					 // An F0 signal indicates a key is being released. An E0 signal
+					 // means that a secondary signal is being used, which will be
+					 // followed by a regular set of make/break signals.
+					 8'he0: curr_state <= SECONDARY_MAKE;
+					 8'hf0: curr_state <= curr_state == MAKE ? BREAK : SECONDARY_BREAK;
+		      endcase
+        end
+        else begin
+		      // Default case if no byte is received.
+		      curr_state <= curr_state;
+		  end
+    end
+endmodule
+
+/*****************************************************************************
+ *                                                                           *
+ * Module:       Altera_UP_PS2                                               *
+ * Description:                                                              *
+ *      This module communicates with the PS2 core.                          *
+ *                                                                           *
+ *****************************************************************************/
+
+module PS2_Controller #(parameter INITIALIZE_MOUSE = 0) (
+	// Inputs
+	CLOCK_50,
+	reset,
+
+	the_command,
+	send_command,
+
+	// Bidirectionals
+	PS2_CLK,					// PS2 Clock
+ 	PS2_DAT,					// PS2 Data
+
+	// Outputs
+	command_was_sent,
+	error_communication_timed_out,
+
+	received_data,
+	received_data_en			// If 1 - new data has been received
+);
+
+/*****************************************************************************
+ *                           Parameter Declarations                          *
+ *****************************************************************************/
+
+
+/*****************************************************************************
+ *                             Port Declarations                             *
+ *****************************************************************************/
+// Inputs
+input			CLOCK_50;
+input			reset;
+
+input	[7:0]	the_command;
+input			send_command;
+
+// Bidirectionals
+inout			PS2_CLK;
+inout		 	PS2_DAT;
+
+// Outputs
+output			command_was_sent;
+output			error_communication_timed_out;
+
+output	[7:0]	received_data;
+output		 	received_data_en;
+
+wire [7:0] the_command_w;
+wire send_command_w, command_was_sent_w, error_communication_timed_out_w;
+
+generate
+	if(INITIALIZE_MOUSE) begin
+	   reg init_done;
+		
+		assign the_command_w = init_done ? the_command : 8'hf4;
+		assign send_command_w = init_done ? send_command : (!command_was_sent_w && !error_communication_timed_out_w);
+		assign command_was_sent = init_done ? command_was_sent_w : 0;
+		assign error_communication_timed_out = init_done ? error_communication_timed_out_w : 1;
+		
+		always @(posedge CLOCK_50)
+			if(reset) init_done <= 0;
+			else if(command_was_sent_w) init_done <= 1;
+		
+	end else begin
+		assign the_command_w = the_command;
+		assign send_command_w = send_command;
+		assign command_was_sent = command_was_sent_w;
+		assign error_communication_timed_out = error_communication_timed_out_w;
+	end
+endgenerate
+
+/*****************************************************************************
+ *                           Constant Declarations                           *
+ *****************************************************************************/
+// states
+localparam	PS2_STATE_0_IDLE			= 3'h0,
+			PS2_STATE_1_DATA_IN			= 3'h1,
+			PS2_STATE_2_COMMAND_OUT		= 3'h2,
+			PS2_STATE_3_END_TRANSFER	= 3'h3,
+			PS2_STATE_4_END_DELAYED		= 3'h4;
+
+/*****************************************************************************
+ *                 Internal wires and registers Declarations                 *
+ *****************************************************************************/
+// Internal Wires
+wire			ps2_clk_posedge;
+wire			ps2_clk_negedge;
+
+wire			start_receiving_data;
+wire			wait_for_incoming_data;
+
+// Internal Registers
+reg		[7:0]	idle_counter;
+
+reg				ps2_clk_reg;
+reg				ps2_data_reg;
+reg				last_ps2_clk;
+
+// State Machine Registers
+reg		[2:0]	ns_ps2_transceiver;
+reg		[2:0]	s_ps2_transceiver;
+
+/*****************************************************************************
+ *                         Finite State Machine(s)                           *
+ *****************************************************************************/
+
+always @(posedge CLOCK_50)
+begin
+	if (reset == 1'b1)
+		s_ps2_transceiver <= PS2_STATE_0_IDLE;
+	else
+		s_ps2_transceiver <= ns_ps2_transceiver;
+end
+
+always @(*)
+begin
+	// Defaults
+	ns_ps2_transceiver = PS2_STATE_0_IDLE;
+
+    case (s_ps2_transceiver)
+	PS2_STATE_0_IDLE:
+		begin
+			if ((idle_counter == 8'hFF) && 
+					(send_command == 1'b1))
+				ns_ps2_transceiver = PS2_STATE_2_COMMAND_OUT;
+			else if ((ps2_data_reg == 1'b0) && (ps2_clk_posedge == 1'b1))
+				ns_ps2_transceiver = PS2_STATE_1_DATA_IN;
+			else
+				ns_ps2_transceiver = PS2_STATE_0_IDLE;
+		end
+	PS2_STATE_1_DATA_IN:
+		begin
+			if ((received_data_en == 1'b1)/* && (ps2_clk_posedge == 1'b1)*/)
+				ns_ps2_transceiver = PS2_STATE_0_IDLE;
+			else
+				ns_ps2_transceiver = PS2_STATE_1_DATA_IN;
+		end
+	PS2_STATE_2_COMMAND_OUT:
+		begin
+			if ((command_was_sent == 1'b1) ||
+				(error_communication_timed_out == 1'b1))
+				ns_ps2_transceiver = PS2_STATE_3_END_TRANSFER;
+			else
+				ns_ps2_transceiver = PS2_STATE_2_COMMAND_OUT;
+		end
+	PS2_STATE_3_END_TRANSFER:
+		begin
+			if (send_command == 1'b0)
+				ns_ps2_transceiver = PS2_STATE_0_IDLE;
+			else if ((ps2_data_reg == 1'b0) && (ps2_clk_posedge == 1'b1))
+				ns_ps2_transceiver = PS2_STATE_4_END_DELAYED;
+			else
+				ns_ps2_transceiver = PS2_STATE_3_END_TRANSFER;
+		end
+	PS2_STATE_4_END_DELAYED:	
+		begin
+			if (received_data_en == 1'b1)
+			begin
+				if (send_command == 1'b0)
+					ns_ps2_transceiver = PS2_STATE_0_IDLE;
+				else
+					ns_ps2_transceiver = PS2_STATE_3_END_TRANSFER;
+			end
+			else
+				ns_ps2_transceiver = PS2_STATE_4_END_DELAYED;
+		end	
+	default:
+			ns_ps2_transceiver = PS2_STATE_0_IDLE;
+	endcase
+end
+
+/*****************************************************************************
+ *                             Sequential logic                              *
+ *****************************************************************************/
+
+always @(posedge CLOCK_50)
+begin
+	if (reset == 1'b1)
+	begin
+		last_ps2_clk	<= 1'b1;
+		ps2_clk_reg		<= 1'b1;
+
+		ps2_data_reg	<= 1'b1;
+	end
+	else
+	begin
+		last_ps2_clk	<= ps2_clk_reg;
+		ps2_clk_reg		<= PS2_CLK;
+
+		ps2_data_reg	<= PS2_DAT;
+	end
+end
+
+always @(posedge CLOCK_50)
+begin
+	if (reset == 1'b1)
+		idle_counter <= 6'h00;
+	else if ((s_ps2_transceiver == PS2_STATE_0_IDLE) &&
+			(idle_counter != 8'hFF))
+		idle_counter <= idle_counter + 6'h01;
+	else if (s_ps2_transceiver != PS2_STATE_0_IDLE)
+		idle_counter <= 6'h00;
+end
+
+/*****************************************************************************
+ *                            Combinational logic                            *
+ *****************************************************************************/
+
+assign ps2_clk_posedge = 
+			((ps2_clk_reg == 1'b1) && (last_ps2_clk == 1'b0)) ? 1'b1 : 1'b0;
+assign ps2_clk_negedge = 
+			((ps2_clk_reg == 1'b0) && (last_ps2_clk == 1'b1)) ? 1'b1 : 1'b0;
+
+assign start_receiving_data		= (s_ps2_transceiver == PS2_STATE_1_DATA_IN);
+assign wait_for_incoming_data	= 
+			(s_ps2_transceiver == PS2_STATE_3_END_TRANSFER);
+
+/*****************************************************************************
+ *                              Internal Modules                             *
+ *****************************************************************************/
+
+Altera_UP_PS2_Data_In PS2_Data_In (
+	// Inputs
+	.clk							(CLOCK_50),
+	.reset							(reset),
+
+	.wait_for_incoming_data			(wait_for_incoming_data),
+	.start_receiving_data			(start_receiving_data),
+
+	.ps2_clk_posedge				(ps2_clk_posedge),
+	.ps2_clk_negedge				(ps2_clk_negedge),
+	.ps2_data						(ps2_data_reg),
+
+	// Bidirectionals
+
+	// Outputs
+	.received_data					(received_data),
+	.received_data_en				(received_data_en)
+);
+
+Altera_UP_PS2_Command_Out PS2_Command_Out (
+	// Inputs
+	.clk							(CLOCK_50),
+	.reset							(reset),
+
+	.the_command					(the_command_w),
+	.send_command					(send_command_w),
+
+	.ps2_clk_posedge				(ps2_clk_posedge),
+	.ps2_clk_negedge				(ps2_clk_negedge),
+
+	// Bidirectionals
+	.PS2_CLK						(PS2_CLK),
+ 	.PS2_DAT						(PS2_DAT),
+
+	// Outputs
+	.command_was_sent				(command_was_sent_w),
+	.error_communication_timed_out	(error_communication_timed_out_w)
+);
+
+endmodule
+
