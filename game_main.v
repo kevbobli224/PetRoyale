@@ -47,15 +47,20 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 							(switches == 5 ? {1'b0, player1_pet2[2:0]} : 
 							(switches == 6 ? {1'b0, player1_pet3[2:0]} : 
 							(switches == 7 ? {1'b0, player1_pet4[2:0]} : 
-							(switches == 8 ? {1'b0, player1_current[2:0]} : 5'b11111))))))));
+							(switches == 8 ? {1'b0, player1_pet[2:0]} : 5'b11111))))))));
+							
 	ssg h2(debughex2, (switches == 1 ? kstates[3:0] : 
 							(switches == 4 ? {1'b0, player1_pet1[5:3]} : 
 							(switches == 5 ? {1'b0, player1_pet2[5:3]} : 
 							(switches == 6 ? {1'b0, player1_pet3[5:3]} : 
-							(switches == 7 ? {1'b0, player1_pet4[5:3]} : 5'b11111))))));
-	ssg h3(debughex3, (switches == 2 ? random_number[3:0] : 5'b11111));
+							(switches == 7 ? {1'b0, player1_pet4[5:3]} : 
+							(switches == 8 ? {1'b0, player1_pet[5:3]} : 5'b11111)))))));
+							
+	ssg h3(debughex3, (switches == 2 ? random_number[3:0] : 
+							(switches == 8 ? {1'b0, player2_pet[2:0]} : 5'b11111)));
+	
 	ssg h4(debughex4, (switches == 2 ? random_number[7:4] : 
-							(switches == 8 ? {1'b0, player2_current[2:0]} : 5'b11111)));
+							(switches == 8 ? {1'b0, player2_pet[5:3]} : 5'b11111)));
 		
 	reg rng_en, reset_n;
 	reg [2:0] rng_init_counter;
@@ -101,6 +106,7 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 		endcase
 	end
 	
+	reg [2:0] combat_selection;
 	
 	always @(posedge clk) begin
 		if(~reset) begin
@@ -193,9 +199,9 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 				endcase
 			end
 			S_PETS_COMBAT_SELECT_PLAYER2: begin
-				player1_pet <= player1_current == 1 ? player1_pet1 :
-									player1_current == 2 ? player1_pet2 :
-									player1_current == 3 ? player1_pet3 : player1_pet4;
+				player1_pet <= player1_current == 0 ? player1_pet1 :
+									player1_current == 1 ? player1_pet2 :
+									player1_current == 2 ? player1_pet3 : player1_pet4;
 				case(kstates)
 					5: player2_current <= 0;
 					6:	player2_current <= 1;
@@ -204,9 +210,14 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 				endcase
 			end
 			S_PETS_COMBAT_BEGIN: begin
-				player1_pet <= player2_current == 1 ? player2_pet1 :
-									player2_current == 2 ? player2_pet2 :
-									player2_current == 3 ? player2_pet3 : player2_pet4;
+				player2_pet <= player2_current == 0 ? player2_pet1 :
+									player2_current == 1 ? player2_pet2 :
+									player2_current == 2 ? player2_pet3 : player2_pet4;
+				if(combat_selection == 3'b111 && kstates == 'd10)
+					combat_selection <= 3'b000;
+				else
+					combat_selection <= combat_selection + 3'b001;
+									
 			end
 		endcase
 		control_states <= next_states;

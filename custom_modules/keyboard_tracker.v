@@ -34,10 +34,12 @@ module keyboard_tracker #(parameter PULSE_OR_HOLD = 0) (
 					K_CODE = 8'h42,
 					L_CODE = 8'h4b,
 					
+					// Set 2
 					LEFT_CODE  = 8'h6b,
 					RIGHT_CODE = 8'h74,
 					UP_CODE    = 8'h75,
 					DOWN_CODE  = 8'h72,
+					
 					SPACE_CODE = 8'h29,
 					ENTER_CODE = 8'h5a;
 					
