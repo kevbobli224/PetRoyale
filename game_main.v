@@ -1,7 +1,7 @@
 module game_main(input CLOCK_50, input [3:0] KEY, input[9:0] SW,
 	inout PS2_CLK, inout PS2_DAT, 
 	output [9:0] LEDR, 
-	output [6:0] HEX5, output [6:0] HEX4, output [6:0] HEX0, output [6:0] HEX1,
+	output [6:0] HEX5, output [6:0] HEX4, output [6:0] HEX0, output [6:0] HEX1, 
 	output VGA_CLK, output VGA_HS, output VGA_VS, output VGA_BLANK_N, output VGA_SYNC_N,
 	output [9:0] VGA_R, output [9:0] VGA_G, output [9:0] VGA_B);
 	
@@ -13,34 +13,41 @@ module game_main(input CLOCK_50, input [3:0] KEY, input[9:0] SW,
 	keyboard_tracker #(.PULSE_OR_HOLD(0)) t1(.clock(CLOCK_50), .reset(KEY[0]), 
 	.PS2_CLK(PS2_CLK), .PS2_DAT(PS2_DAT), .keypress_out(key_states));
 	
-
-	
 	game_datapath main_datapath(key_states, CLOCK_50, KEY[3], KEY[2], game_states);
-	game_control main_control(key_states, CLOCK_50, KEY[2], game_states, HEX0, HEX1, HEX4, HEX5, SW[9:0]);
+	game_control  main_control(key_states, CLOCK_50, KEY[2], game_states, HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, SW[9:0]);
 	
 endmodule
 
-module game_control(kstates, clk, reset, control_states, debughex1, debughex2, debughex3, debughex4, switches);
+module game_control(kstates, clk, reset, control_states, 
+	debughex1, debughex2, debughex3, debughex4, debughex5, debughex6, switches);
 	input clk, reset;
 	input [4:0] kstates;
 	input [9:0] switches;
 	output reg [6:0] control_states;
-	output [6:0] debughex1, debughex2, debughex3, debughex4;
+	output [6:0] debughex1, debughex2, debughex3, debughex4, debughex5, debughex6;
 	
 	reg [7:0] random_number;
 	
+	// 128 states
 	reg [6:0] next_states;
 	
 	localparam 	S_RNG_INIT = 4'd0,
-					S_GEN_PETS = 4'd1,
+					S_GEN_PETS = 4'd1,	
 					S_GEN_PETS_WAIT = 4'd2,
 					S_GEN_DONE = 4'd3,
 					S_PETS_COMBAT_SELECT_PLAYER1 = 4'd4,
 					S_PETS_COMBAT_SELECT_PLAYER1_WAIT = 4'd5,
 					S_PETS_COMBAT_SELECT_PLAYER2 = 4'd6,
 					S_PETS_COMBAT_SELECT_PLAYER2_WAIT = 4'd7,
-					S_PETS_COMBAT_BEGIN = 4'd8;
-					
+					S_PETS_COMBAT_PLAYER1_TURN = 4'd8,
+					S_PETS_COMBAT_PLAYER1_WAIT = 4'd9,
+					S_PETS_COMBAT_PLAYER1_PROCESS = 4'd10,
+					S_PETS_COMBAT_PLAYER2_TURN = 4'd11,
+					S_PETS_COMBAT_PLAYER2_WAIT = 4'd12,
+					S_PETS_COMBAT_PLAYER2_PROCESS = 4'd13;
+	
+	// Player 1 on the right, player 2 on the left.
+	
 	ssg h1(debughex1, (switches == 0 ? control_states[3:0] : 
 							(switches == 1 ? {3'b000, kstates[4]} : 
 							(switches == 4 ? {1'b0, player1_pet1[2:0]} : 
@@ -56,11 +63,19 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 							(switches == 7 ? {1'b0, player1_pet4[5:3]} : 
 							(switches == 8 ? {1'b0, player1_pet[5:3]} : 5'b11111)))))));
 							
-	ssg h3(debughex3, (switches == 2 ? random_number[3:0] : 
+	ssg h5(debughex5, (switches == 2 ? random_number[3:0] : 
 							(switches == 8 ? {1'b0, player2_pet[2:0]} : 5'b11111)));
 	
-	ssg h4(debughex4, (switches == 2 ? random_number[7:4] : 
+	ssg h6(debughex6, (switches == 2 ? random_number[7:4] : 
 							(switches == 8 ? {1'b0, player2_pet[5:3]} : 5'b11111)));
+							
+	ssg h3(debughex3, (switches == 8 ? {1'b0, combat_selection} : 5'b11111));
+							
+	ssg h4(debughex4, (switches == 2 ? {1'b0, combat_selection} : 
+							(switches == 8 ? {1'b0, player2_pet[5:3]} : 5'b11111)));
+							
+	
+	
 		
 	reg rng_en, reset_n;
 	reg [2:0] rng_init_counter;
@@ -83,6 +98,12 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 	reg [2:0] player1_current, player2_current;
 	reg [8:0] player1_pet, player2_pet;
 	
+	wire [2:0] player1_atk, player2_atk;
+	assign player1_atk = player1_pet[8:6];
+	assign player2_atk = player2_pet[8:6];
+	
+	reg player1_is_blocking, player2_is_blocking;
+	
 	always @(*) begin
 		case (control_states)
 			S_RNG_INIT:									next_states = rng_init_counter == 3'b111 ? S_GEN_PETS : S_RNG_INIT;
@@ -97,16 +118,24 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 															((player1_pet4[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER1 : S_PETS_COMBAT_SELECT_PLAYER2) ;
 			S_PETS_COMBAT_SELECT_PLAYER2:			next_states = (kstates <= 'd8 && kstates >= 'd5) ? S_PETS_COMBAT_SELECT_PLAYER2_WAIT : S_PETS_COMBAT_SELECT_PLAYER2;
 			S_PETS_COMBAT_SELECT_PLAYER2_WAIT: 	next_states = (kstates <= 'd8 && kstates >= 'd5) ? S_PETS_COMBAT_SELECT_PLAYER2_WAIT : 
-															(player2_current == 0) ? ((player2_pet1[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_BEGIN) : 
-															(player2_current == 1) ? ((player2_pet2[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_BEGIN) : 
-															(player2_current == 2) ? ((player2_pet3[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_BEGIN) : 
-															((player2_pet4[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_BEGIN) ;
-			S_PETS_COMBAT_BEGIN:						next_states = S_PETS_COMBAT_BEGIN;
-			default: 							next_states = S_GEN_PETS;
+															(player2_current == 0) ? ((player2_pet1[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_PLAYER1_TURN) : 
+															(player2_current == 1) ? ((player2_pet2[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_PLAYER1_TURN) : 
+															(player2_current == 2) ? ((player2_pet3[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_PLAYER1_TURN) : 
+															((player2_pet4[2:0] == 0) ? S_PETS_COMBAT_SELECT_PLAYER2 : S_PETS_COMBAT_PLAYER1_TURN) ;
+			S_PETS_COMBAT_PLAYER1_TURN:			next_states = (kstates == 'd9 || kstates == 'd10 || kstates == 'd13) ? S_PETS_COMBAT_PLAYER1_WAIT : S_PETS_COMBAT_PLAYER1_TURN;
+			S_PETS_COMBAT_PLAYER1_WAIT: 			next_states = (kstates == 'd9 || kstates == 'd10 || kstates == 'd13) ? S_PETS_COMBAT_PLAYER1_WAIT : 
+															(kstates == 'd13) ? S_PETS_COMBAT_PLAYER1_PROCESS : S_PETS_COMBAT_PLAYER1_WAIT;
+			// To be completed.
+			S_PETS_COMBAT_PLAYER1_PROCESS:		next_states = (combat_selection1 == 'd2) ? ;
+			S_PETS_COMBAT_PLAYER2_TURN:			next_states = (kstates == 'd9 || kstates == 'd10 || kstates == 'd13) ? S_PETS_COMBAT_PLAYER2_WAIT : S_PETS_COMBAT_PLAYER2_TURN;
+			S_PETS_COMBAT_PLAYER2_WAIT: 			next_states = (kstates == 'd9 || kstates == 'd10 || kstates == 'd13) ? S_PETS_COMBAT_PLAYER2_WAIT : 
+															(kstates == 'd13) ? S_PETS_COMBAT_PLAYER2_PROCESS : S_PETS_COMBAT_PLAYER2_WAIT;
+			S_PETS_COMBAT_PLAYER2_PROCESS:		next_states = S_PETS_COMBAT_PLAYER2_TURN;
+			default: 									next_states = S_GEN_PETS;
 		endcase
 	end
 	
-	reg [2:0] combat_selection;
+	reg [1:0] combat_selection1, combat_selection2;
 	
 	always @(posedge clk) begin
 		if(~reset) begin
@@ -209,15 +238,38 @@ module game_control(kstates, clk, reset, control_states, debughex1, debughex2, d
 					8:	player2_current <= 3;
 				endcase
 			end
-			S_PETS_COMBAT_BEGIN: begin
+			S_PETS_COMBAT_PLAYER1_TURN: begin
 				player2_pet <= player2_current == 0 ? player2_pet1 :
 									player2_current == 1 ? player2_pet2 :
 									player2_current == 2 ? player2_pet3 : player2_pet4;
-				if(combat_selection == 3'b111 && kstates == 'd10)
-					combat_selection <= 3'b000;
-				else
-					combat_selection <= combat_selection + 3'b001;
 									
+				if(kstates == 'd10) begin
+					if(combat_selection1 == 2'b11)
+						combat_selection1 <= 2'b00;
+					else
+						combat_selection1 <= combat_selection1 + 2'b01;
+				end
+				else if (kstates == 'd9) begin
+					if(combat_selection1 == 2'b00)
+						combat_selection1 <= 2'b111;
+					else
+						combat_selection1 <= combat_selection1 - 2'b01;
+				end
+			end
+			S_PETS_COMBAT_PLAYER1_PROCESS: begin
+				// 0 = Attack, 1 = Defend, 2....
+				case(combat_selection1)
+					2'b00: begin
+						player2_current == 0 ? (player2_pet1[2:0] <= player2_pet1[2:0] - player1_atk) :
+						player2_current == 1 ? (player2_pet2[2:0] <= player2_pet2[2:0] - player1_atk) :
+						player2_current == 2 ? (player2_pet3[2:0] <= player2_pet3[2:0] - player1_atk) : 
+						(player2_pet4[2:0] <= player2_pet4[2:0] - player1_atk);
+					end
+					2'b01: player1_is_blocking <= 1'b1; 
+					default: player1_is_blocking <= 1'b0;  
+					2'b10:
+//					2'b11:
+				endcase
 			end
 		endcase
 		control_states <= next_states;
