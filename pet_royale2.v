@@ -51,13 +51,6 @@ module pet_royale2
 	
 	wire [7:0] character1;
 	
-	
-	assign x1 = 50;
-	assign y1 = 100;
-
-	assign w1 = 8;
-	assign h1 = 8;
-	
 	assign x2 = 120;
 	assign y2 = 40;
 	assign w2 = 6;
@@ -72,13 +65,18 @@ module pet_royale2
 	
 	wire [4:0] key_states;
 	
+	
 	keyboard_tracker #(.PULSE_OR_HOLD(0)) t1(.clock(CLOCK_50), .reset(KEY[0]), 
 	.PS2_CLK(PS2_CLK), .PS2_DAT(PS2_DAT), .keypress_out(key_states));
 	
-	gameplay gp(CLOCK_50, resetn, x3, y3, w3, h3, character1, x1, y1, w1, h1);
+	//character_controller char1(x1, y1, w1, h1, key_states, CLOCK_50, KEY);
+	
+	gameplay gp(CLOCK_50, resetn, x3, y3, w3, h3, x1, y1, w1, h1);
 	
 	vga_driver vga_d1(x, y, colour, writeEn, CLOCK_50, resetn, 
 	                  x1, y1, w1, h1, x2, y2, w2, h2, x3, y3, w3, h3, character1);
+							
+	
 	
 
 	// Create an Instance of a VGA controller - there can be only one!
@@ -116,37 +114,109 @@ module pet_royale2
     
 endmodule
 
+//module character_controller(char_x, char_y, char_w, char_h, key_states, clk, debug_key);
+//	output reg [7:0] char_x; 
+//	output reg [6:0] char_y;
+//	input [3:0] char_w, char_h;
+//	input clk;
+//	input [3:0] debug_key;
+//	input [4:0] key_states;
+//	
+////	always @(clk) begin
+////		case(key_states)
+////			'd9: char_x <= char_x - 1;
+////			'd10: char_x <= char_x + 1;
+////			'd11: char_y <= char_y - 1;
+////			'd12: char_y <= char_y - 1;
+////		endcase
+////	end
+//	always @(*) begin
+//		if(debug_key[0] == 1)
+//			if (char_x > 0)
+//				char_x <= char_x - 1;
+//		else if(debug_key[1] == 1)
+//			if (char_x < (160 - char_w))
+//				char_x <= char_x + 1;
+//		else if(debug_key[2] == 1)
+//			if (char_y > 0)
+//				char_y <= char_y - 1;
+//		else if(debug_key[3] == 1)
+//			if (char_y < (120 - char_h))
+//				char_y <= char_y + 1;
+//	end
+//	
+//endmodule
+
 module vga_driver(x_out, y_out, color, writeEn, clk, resetn, 
-                  x1, y1, w1, h1, x2, y2, w2, h2, x3, y3, w3, h3, row_data1);
+                  x1, y1, w1, h1, x2, y2, w2, h2, x3, y3, w3, h3, debug_key);
 	
 	output reg [7:0] x_out;
 	output reg [6:0] y_out;
-	
+	input [3:0] debug_key;
 	output reg [2:0] color;
 	output writeEn;
 	input clk;
 	input resetn;
 	
-	input [7:0] x1, x2, x3;
-	input [6:0] y1, y2, y3;
-	input [4:0] w1, w2, w3;
-	input [4:0] h1, h2, h3;
+	output reg [7:0] x1, x2;
+	input [7:0] x3;
+	output reg [6:0] y1, y2;
+	input [6:0] y3;
+	output reg [4:0] w1, w2;
+	input [4:0] w3, h3;
+	output reg [4:0] h1, h2;
 		
 	reg [26:0] counter;
 	wire vga_en;
 	
-	output reg [7:0] row_data1;
+	reg [7:0] row_data1;
 	
 	wire col_pixel1;
 	reg [2:0] color1;
 	wire [2:0] x_indx1;
 	wire [2:0] y_indx1;
-
+	
+	localparam S_CHAR_INIT = 'd0,
+					S_CHAR_DONE_INIT = 'd1;
+	
+	reg [5:0] current_state, next_state;
+	reg done_init;
+	
+	always @(*) begin
+		case(current_state)
+			S_CHAR_INIT: next_state = done_init ? S_CHAR_DONE_INIT : S_CHAR_INIT;
+		endcase
+	end
+	
 	always@ (posedge clk)
 	begin
+		case(current_state)
+			S_CHAR_INIT: begin
+				x1 <= 50;
+				y1 <= 100;
+				w1 <= 8;
+				h1 <= 8;
+				done_init <= 1'b1;
+			end
+		endcase
+		current_state <= next_state;
+		if(debug_key[0] != 1)
+			if (x1 > 0)
+				x1 <= x1 - 1;
+		else if(debug_key[1] != 1)
+			if (x1 < (160 - w1))
+				x1 <= x1 + 1;
+		else if(debug_key[2] != 1)
+			if (y1 > 0)
+				y1 <= y1 - 1;
+		else if(debug_key[3] != 1)
+			if (y1 < (120 - h1))
+				y1 <= y1 + 1;
 		if (!resetn)
 			begin
 				counter <= 0;
+				x_out <= 0;
+				y_out <= 0;
 			end
 		else
 			begin
@@ -154,18 +224,7 @@ module vga_driver(x_out, y_out, color, writeEn, clk, resetn,
 					counter <= 0;
 				else 
 					counter <= counter + 1;
-			end
-	end	
-	assign vga_en = (counter == 12_500_000);
-	always@ (posedge clk)
-	begin
-		if (!resetn)
-			begin
-				x_out <= 0;
-				y_out <= 0;
-			end
-		else
-			begin
+					
 				if (x_out >= 159)
 					begin
 						x_out <= 0;
@@ -176,8 +235,10 @@ module vga_driver(x_out, y_out, color, writeEn, clk, resetn,
 					end
 				else
 					x_out <= x_out + 1;
+					
 			end
 	end
+	assign vga_en = (counter == 12_500_000);
 	assign writeEn = 1;
 	always@ (*)
 	begin
@@ -192,6 +253,7 @@ module vga_driver(x_out, y_out, color, writeEn, clk, resetn,
 			color = 3'b001;
 		else
 			color = 3'b0;
+
 	end	
 	
 	assign x_indx1 = (x_out - x1) & 3'b111;
@@ -222,7 +284,7 @@ module vga_driver(x_out, y_out, color, writeEn, clk, resetn,
 endmodule
 
 
-module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, character1, char1_x, char1_y, char1_w, char1_h);
+module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, char1_x, char1_y, char1_w, char1_h);
 
 	input clk;
 	input resetn;
@@ -231,7 +293,6 @@ module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, character1, char1_x
 	input [4:0] ball_w;
 	input [4:0] ball_h;
 	
-	input [7:0] character1;
 	input [7:0] char1_x;
 	input [6:0] char1_y;
 	input [3:0] char1_w, char1_h; // 8x8 -> 4'b1000
@@ -308,13 +369,10 @@ module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, character1, char1_x
 					else
 						ball_y <= ball_y - 1;
 				end
-				if(ball_x == char1_x || ball_x == char1_x + char1_w || ball_y == char1_y || ball_y == char1_y + char1_h)
-				begin
-					if (ball_x == char1_x || ball_x == char1_x + char1_w)
-						dir_x <= ~dir_x;
-					else
-						dir_y <= ~dir_y;
-				end
+				if ((ball_x == char1_x || ball_x == char1_x + char1_w) && (ball_y >= char1_y && ball_y <= char1_y + char1_h))
+					dir_x <= ~dir_x;
+				else if ((ball_y == char1_y || ball_y == char1_y + char1_y + char1_h) && ball_x >= char1_x && ball_x <= char1_x + char1_w)
+					dir_y <= ~dir_y;
 			end
 	end // always
 
