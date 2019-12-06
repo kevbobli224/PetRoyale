@@ -68,22 +68,25 @@ module pet_royale2
 //	assign h4 = 8;
 	
 	wire [4:0] key_states;
+	wire w,a,s,d,up,down,left,right;
 	wire [1:0] ball_states;
 	
 	wire [1:0] l1, l2;
 	
-	//keyboard_tracker #(.PULSE_OR_HOLD(0)) t1(.clock(CLOCK_50), .reset(KEY[0]), 
-	//.PS2_CLK(PS2_CLK), .PS2_DAT(PS2_DAT), .keypress_out(key_states));
+//	keyboard_tracker #(.PULSE_OR_HOLD(0)) t1(.clock(CLOCK_50), .reset(KEY[0]), 
+//	.PS2_CLK(PS2_CLK), .PS2_DAT(PS2_DAT), .keypress_out(key_states));
 	
+	keyboard_tracker #(.PULSE_OR_HOLD(0)) t2(.clock(CLOCK_50), .reset(KEY[0]), 
+	.PS2_CLK(PS2_CLK), .PS2_DAT(PS2_DAT), .w(w), .a(a), .s(s), .d(d), .left(left), .right(right), .up(up), .down(down));
 	//character_controller char1(x1, y1, w1, h1, key_states, CLOCK_50, KEY);
 	
 	gameplay gp(CLOCK_50, resetn, x3, y3, w3, h3, x1, y1, w1, h1, x2, y2, w2, h2, ball_states, l1, l2);
 	
 	vga_driver vga_d1(x, y, colour, writeEn, CLOCK_50, resetn, 
-	                  x1, y1, w1, h1, x2, y2, w2, h2, x3, y3, w3, h3, x4, y4, w4, h4, KEY, key_states, ball_states, l1, l2);
+	                  x1, y1, w1, h1, x2, y2, w2, h2, x3, y3, w3, h3, x4, y4, w4, h4, w,a,s,d,left,right,up,down, ball_states, l1, l2);
 							
 	
-	
+
 
 	// Create an Instance of a VGA controller - there can be only one!
 	// Define the number of colours as well as the initial background
@@ -154,16 +157,16 @@ endmodule
 //endmodule
 
 module vga_driver(x_out, y_out, color, writeEn, clk, resetn, 
-                  x1, y1, w1, h1, x2, y2, w2, h2, x3, y3, w3, h3, x4, y4, w4, h4, debug_key, key_states, ball_states, lives1, lives2);
+                  x1, y1, w1, h1, x2, y2, w2, h2, x3, y3, w3, h3, x4, y4, w4, h4, w,a,s,d,left,right,up,down, ball_states, lives1, lives2);
 	
 	output reg [7:0] x_out;
 	output reg [6:0] y_out;
-	input [3:0] debug_key;
 	output reg [2:0] color;
 	output writeEn;
+	input w,a,s,d,left,right,up,down;
 	input clk;
 	input resetn;
-	input [4:0] key_states;
+//	input [4:0] key_states;
 	input [1:0] ball_states;
 	
 	input [1:0] lives1, lives2;
@@ -244,51 +247,47 @@ module vga_driver(x_out, y_out, color, writeEn, clk, resetn,
 			end
 		else
 			begin
-				if(counter >= 12_500_000) begin
-					// Uncomment for keyboard only
-//					if(key_states >= 'd1 && key_states <= 'd4) begin
-					// Left
-					if(!debug_key[0] || key_states == 'd1) begin
-						if (x1 > 0)
-							x1 <= x1 - 1;
-					end
-					// Right
-					if(!debug_key[1] || key_states == 'd3) begin
-						if (x1 < (160 - w1))
-							x1 <= x1 + 1;
-					end
-					// Up
-					if(!debug_key[2] || key_states == 'd4) begin
-						if (y1 > 0)
-							y1 <= y1 - 1;
-					end
-					// Down
-					if(!debug_key[3] || key_states == 'd2) begin
-						if (y1 < (120 - h1))
-							y1 <= y1 + 1;
-					end
-//					end
-					else if (key_states >= 'd9 && key_states <= 'd12) begin
-						case(key_states) // l r u d
-							9: begin 
-								if (x2 > 0)
-									x2 <= x2 - 1;
-							end
-							10: begin
-								if (x2 < (160 - w2))
-									x2 <= x2 + 1;
-							end
-							11: begin
-								if (y2 > 0)
-									y2 <= y2 - 1;
-							end
-							12: begin
-								if (y2 < (120 - h2))
-									y2 <= y2 + 1;
-							end
+				if(counter >= 3_500_000) begin
+						// Left
+						if(a) begin
+							if (x1 > 0)
+								x1 <= x1 - 1;
+						end
+						// Right
+						if(d) begin
+							if (x1 < (160 - w1))
+								x1 <= x1 + 1;
+						end
+						// Up
+						if(w) begin
+							if (y1 > 0)
+								y1 <= y1 - 1;
+						end
+						// Down
+						if(s) begin
+							if (y1 < (120 - h1))
+								y1 <= y1 + 1;
+						end
 						
-						endcase
-					end
+						if(left) begin
+							if (x2 > 0)
+								x2 <= x2 - 1;
+						end
+						// Right
+						if(right) begin
+							if (x2 < (160 - w2))
+								x2 <= x2 + 1;
+						end
+						// Up
+						if(up) begin
+							if (y2 > 0)
+								y2 <= y2 - 1;
+						end
+						// Down
+						if(down) begin
+							if (y2 < (120 - h2))
+								y2 <= y2 + 1;
+						end
 					counter <= 0;
 				end
 				else 
@@ -310,7 +309,7 @@ module vga_driver(x_out, y_out, color, writeEn, clk, resetn,
 	assign vga_en = (counter == 12_500_000);
 	assign writeEn = 1;
 	
-	wire [2:0] c_red, c_blue, c_green;
+	wire [7:0] c_red, c_blue, c_green;
 	assign c_red = 3'b100;
 	assign c_blue = 3'b001;
 	assign c_green = 3'b010;
@@ -421,15 +420,15 @@ module vga_driver(x_out, y_out, color, writeEn, clk, resetn,
 	always @(*)
 	begin
 		if ((y_indx1 == 4) && ((x_indx1 == 2) || (x_indx1 == 5)))
-			color1 = col_pixel1 ? 3'b001 : 3'b0;
-		else
 			color1 = col_pixel1 ? 3'b100 : 3'b0;
+		else
+			color1 = col_pixel1 ? 3'b011 : 3'b0;
 		if ((y_indx2 == 4) && ((x_indx2 == 2) || (x_indx2 == 5)))
 			color2 = col_pixel2 ? 3'b001 : 3'b0;
 		else
-			color2 = col_pixel2 ? 3'b100 : 3'b0;
-		color_l1 = col_pixel_lives1 ? c_red : 3'b0;
-		color_l2 = col_pixel_lives2 ? c_red : 3'b0;
+			color2 = col_pixel2 ? 3'b111 : 3'b0;
+		color_l1 = col_pixel_lives1 ? c_green : 3'b0;
+		color_l2 = col_pixel_lives2 ? c_green : 3'b0;
 //		if ((y_indx4 == 4) && ((x_indx4 == 2) || (x_indx4 == 5)))
 //			color4 = col_pixel4 ? 3'b001 : 3'b0;
 //		else
@@ -451,7 +450,8 @@ module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, char1_x, char1_y, c
 
 	
 	reg [3:0] invincibility_counter = 15;
-	reg is_invincible;
+	reg is_invincible = 0;
+	reg is_q = 0;
 	
 	input [7:0] char1_x, char2_x;
 	input [6:0] char1_y, char2_y;
@@ -467,8 +467,6 @@ module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, char1_x, char1_y, c
 	begin
 		if (!resetn)
 			begin
-				lives1 <= 3;
-				lives2 <= 3;
 				counter <= 0;
 			end
 		else
@@ -476,9 +474,9 @@ module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, char1_x, char1_y, c
 			if (is_q)
 				is_invincible <= 1'b1;
 				
-				if(counter >= 3_250_000) begin
+				if(counter >= 1_250_000) begin
 					if (is_invincible == 1'b1) begin
-						invincibility_counter <= 1;
+						invincibility_counter <= invincibility_counter - 1;
 						if (invincibility_counter == 0) begin
 							invincibility_counter <= 15;
 							is_invincible <= 1'b0;
@@ -491,11 +489,13 @@ module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, char1_x, char1_y, c
 			end
 		
 	end
-	assign update_en = (counter == 3_250_000);
+	assign update_en = (counter == 1_250_000);
 	always@ (posedge clk)
 	begin
 		if (!resetn)
 			begin
+				lives1 <= 3;
+				lives2 <= 3;
 				ball_x <= 0;
 				ball_y <= 0;
 				dir_x <= 1;
@@ -577,7 +577,5 @@ module gameplay(clk, resetn, ball_x, ball_y, ball_w, ball_h, char1_x, char1_y, c
 			if(is_invincible)
 				is_q <= 1'b0;
 	end // always
-reg is_q;
 
 endmodule
-
